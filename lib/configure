@@ -125,9 +125,9 @@ case $sys in
 		echo >>$m 'WITH_LIBS+=-lpci'
 		LIBRESOLV=
 		;;
-    	gnu)
-		echo_n " i386-ports"
-		echo >>$c '#define PCI_HAVE_PM_INTEL_CONF'
+	gnu)
+		echo_n " hurd"
+		echo >>$c '#define PCI_HAVE_PM_HURD_CONF'
 		;;
 	cygwin)
 		echo_n " i386-ports"
