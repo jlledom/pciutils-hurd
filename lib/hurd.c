@@ -47,6 +47,11 @@ hurd_cleanup(struct pci_access *a UNUSED)
 {
 }
 
+/*
+ * Read `len' bytes to `buf'.
+ *
+ * Returns error when the number of read bytes does not match `len'.
+ */
 static int
 hurd_read(struct pci_dev *d, int pos, byte *buf, int len)
 {
@@ -81,6 +86,11 @@ hurd_read(struct pci_dev *d, int pos, byte *buf, int len)
   return nread == (size_t)len;
 }
 
+/*
+ * Write `len' bytes from `buf'.
+ *
+ * Returns error when the number of written bytes does not match `len'.
+ */
 static int
 hurd_write(struct pci_dev *d, int pos, byte *buf, int len)
 {
