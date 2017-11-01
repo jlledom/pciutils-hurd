@@ -15,6 +15,9 @@
 #include <hurd/pci_conf.h>
 #include <hurd/paths.h>
 
+/* Server path */
+#define _SERVERS_PCI_CONF	_SERVERS_BUS "/pci"
+
 /* Server port */
 mach_port_t pci_server_port = MACH_PORT_NULL;
 
