@@ -93,7 +93,7 @@ static int
 enum_devices (const char *parent, struct pci_access *a, int domain, int bus,
 	      int dev, int func, tree_level lev)
 {
-  int err, ret, confd;
+  int err, ret;
   DIR *dir;
   struct dirent *entry;
   char path[NAME_MAX];
@@ -154,51 +154,26 @@ enum_devices (const char *parent, struct pci_access *a, int domain, int bus,
 	    continue;
 
 	  /* We found an available virtual device, add it to our list */
-	  confd = open (path, O_RDONLY, 0);
-	  if (confd < 0)
-	    return errno;
-
-	  ret = lseek (confd, PCI_VENDOR_ID, SEEK_SET);
-	  if (ret < 0)
-	    return errno;
-	  if (ret != PCI_VENDOR_ID)
-	    return -1;
-	  ret = read (confd, (char *) &vd, sizeof (vd));
-	  if (ret < 0)
-	    return errno;
-	  if (ret != sizeof (vd))
-	    return -1;
-
-	  ret = lseek (confd, PCI_HEADER_TYPE, SEEK_SET);
-	  if (ret < 0)
-	    return errno;
-	  if (ret != PCI_HEADER_TYPE)
-	    return -1;
-	  ret = read (confd, (char *) &ht, sizeof (ht));
-	  if (ret < 0)
-	    return errno;
-	  if (ret != sizeof (ht))
-	    return -1;
-
-	  close (confd);
-
-	  d = pci_alloc_dev (a);
-	  d->bus = bus;
-	  d->dev = dev;
-	  d->func = func;
-	  d->vendor_id = vd & 0xffff;
-	  d->device_id = vd >> 16U;
-	  d->known_fields = PCI_FILL_IDENT;
-	  d->hdrtype = ht;
-	  pci_link_dev (a, d);
-
-	  snprintf (server, NAME_MAX, "%s/%04x/%02x/%02x/%01u",
-		    _SERVERS_PCI_CONF, domain, bus, dev, func);
+	  snprintf (server, NAME_MAX, "%s/%04x/%02x/%02x/%01u/%s",
+		    _SERVERS_PCI_CONF, domain, bus, dev, func, entry->d_name);
 	  device_port = file_name_lookup (server, 0, 0);
 	  if (device_port == MACH_PORT_NULL)
 	    return errno;
 
+	  d = pci_alloc_dev (a);
 	  *((mach_port_t *) d->aux) = device_port;
+	  d->bus = bus;
+	  d->dev = dev;
+	  d->func = func;
+	  pci_link_dev (a, d);
+
+	  vd = pci_read_long(d, PCI_VENDOR_ID);
+	  ht = pci_read_byte(d, PCI_HEADER_TYPE);
+
+	  d->vendor_id = vd & 0xffff;
+	  d->device_id = vd >> 16U;
+	  d->known_fields = PCI_FILL_IDENT;
+	  d->hdrtype = ht;
 	}
     }
 
