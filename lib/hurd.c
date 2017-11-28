@@ -20,7 +20,7 @@
 #include <string.h>
 #include <assert.h>
 #include <hurd.h>
-#include <hurd/pci_conf.h>
+#include <hurd/pci.h>
 #include <hurd/paths.h>
 
 /* Server path */
@@ -167,8 +167,8 @@ enum_devices (const char *parent, struct pci_access *a, int domain, int bus,
 	  d->func = func;
 	  pci_link_dev (a, d);
 
-	  vd = pci_read_long(d, PCI_VENDOR_ID);
-	  ht = pci_read_byte(d, PCI_HEADER_TYPE);
+	  vd = pci_read_long (d, PCI_VENDOR_ID);
+	  ht = pci_read_byte (d, PCI_HEADER_TYPE);
 
 	  d->vendor_id = vd & 0xffff;
 	  d->device_id = vd >> 16U;
@@ -210,9 +210,7 @@ hurd_read (struct pci_dev *d, int pos, byte * buf, int len)
   else
     {
       data = (char *) buf;
-      err =
-	pci_conf_read (device_port, d->bus, d->dev, d->func, pos, &data,
-		       &nread, len);
+      err = pci_conf_read (device_port, pos, &data, &nread, len);
 
       if (data != (char *) buf)
 	{
@@ -249,8 +247,7 @@ hurd_write (struct pci_dev *d, int pos, byte * buf, int len)
   if (len > 4)
     err = !pci_generic_block_write (d, pos, buf, len);
   else
-    err = pci_conf_write (device_port, d->bus, d->dev, d->func, pos,
-			  (char *) buf, len, &nwrote);
+    err = pci_conf_write (device_port, pos, (char *) buf, len, &nwrote);
   if (err)
     return 0;
 
