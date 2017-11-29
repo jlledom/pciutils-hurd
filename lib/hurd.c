@@ -26,8 +26,9 @@
 /* Server path */
 #define _SERVERS_PCI_CONF	_SERVERS_BUS "/pci"
 
-/* Config file name */
+/* File names */
 #define FILE_CONFIG_NAME "config"
+#define FILE_ROM_NAME "rom"
 
 /* Level in the fs tree */
 typedef enum
@@ -38,6 +39,17 @@ typedef enum
   LEVEL_DEV,
   LEVEL_FUNC
 } tree_level;
+
+/* Memory region info, as the server send it to us */
+struct dev_region
+{
+  uint64_t base_addr;
+  uint64_t size;
+  unsigned is_IO:1;
+  unsigned is_prefetchable:1;
+  unsigned is_64:1;
+};
+
 
 /* Check whether there's a pci server */
 static int
@@ -254,6 +266,110 @@ hurd_write (struct pci_dev *d, int pos, byte * buf, int len)
   return nwrote == (size_t) len;
 }
 
+static int
+hurd_fill_info (struct pci_dev *d, int flags)
+{
+  int err, i;
+  struct dev_region regions[6];
+  size_t regions_size;
+  char *buf;
+  mach_port_t device_port;
+  char server[NAME_MAX];
+  struct stat romst;
+  u32 xrombar_addr;
+
+  device_port = *((mach_port_t *) d->aux);
+
+  if (flags & PCI_FILL_IDENT)
+    {
+      d->vendor_id = pci_read_word (d, PCI_VENDOR_ID);
+      d->device_id = pci_read_word (d, PCI_DEVICE_ID);
+    }
+
+  if (flags & PCI_FILL_CLASS)
+    d->device_class = pci_read_word (d, PCI_CLASS_DEVICE);
+
+  if (flags & PCI_FILL_IRQ)
+    d->irq = pci_read_byte (d, PCI_INTERRUPT_LINE);
+
+  if (flags & PCI_FILL_BASES)
+    {
+      buf = (char *) &regions;
+      regions_size = sizeof (regions);
+
+      err = pci_get_dev_regions (device_port, &buf, &regions_size);
+      if (err)
+	return err;
+
+      if ((char *) &regions != buf)
+	{
+	  /* Sanity check for bogus server.  */
+	  if (regions_size > sizeof (regions))
+	    {
+	      vm_deallocate (mach_task_self (), (vm_address_t) buf,
+			     regions_size);
+	      return EGRATUITOUS;
+	    }
+
+	  memcpy (&regions, buf, regions_size);
+	  vm_deallocate (mach_task_self (), (vm_address_t) buf, regions_size);
+	}
+
+      for (i = 0; i < 6; i++)
+	{
+	  if (regions[i].size == 0)
+	    continue;
+
+	  d->base_addr[i] = regions[i].base_addr;
+	  d->base_addr[i] |= regions[i].is_IO;
+	  d->base_addr[i] |= regions[i].is_64 << 2;
+	  d->base_addr[i] |= regions[i].is_prefetchable << 3;
+
+	  if (flags & PCI_FILL_SIZES)
+	    d->size[i] = regions[i].size;
+	}
+    }
+
+  if (flags & PCI_FILL_ROM_BASE)
+    {
+      snprintf (server, NAME_MAX, "%s/%04x/%02x/%02x/%01u/%s",
+		_SERVERS_PCI_CONF, d->domain, d->bus, d->dev, d->func,
+		FILE_ROM_NAME);
+
+      err = lstat (server, &romst);
+      if (!err)
+	{
+	  /* Size */
+    if (flags & PCI_FILL_SIZES)
+      d->rom_size = romst.st_size;
+
+	  /* Rom Base address */
+	  xrombar_addr = 0;
+	  d->rom_base_addr = 0;
+	  switch (d->hdrtype)
+	    {
+	    case PCI_HEADER_TYPE_NORMAL:
+	      xrombar_addr = PCI_ROM_ADDRESS;
+	      break;
+	    case PCI_HEADER_TYPE_BRIDGE:
+	      xrombar_addr = PCI_ROM_ADDRESS1;
+	      break;
+	    }
+	  if (xrombar_addr)
+	    {
+	      u32 u = pci_read_long (d, xrombar_addr);
+	      if (u != 0xffffffff)
+		d->rom_base_addr = u & 0xFFFFF800;	/* Base address: first 21 bytes */
+	    }
+	}
+    }
+
+  if (flags & (PCI_FILL_CAPS | PCI_FILL_EXT_CAPS))
+    flags |= pci_scan_caps (d, flags);
+
+  return flags;
+}
+
 struct pci_methods pm_hurd = {
   "hurd",
   "Hurd access using RPCs",
@@ -262,7 +378,7 @@ struct pci_methods pm_hurd = {
   hurd_init,
   hurd_cleanup,
   hurd_scan,
-  pci_generic_fill_info,
+  hurd_fill_info,
   hurd_read,
   hurd_write,
   NULL,				/* read_vpd */
