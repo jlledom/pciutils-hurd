@@ -40,17 +40,6 @@ typedef enum
   LEVEL_FUNC
 } tree_level;
 
-/* Memory region info, as the server send it to us */
-struct dev_region
-{
-  uint64_t base_addr;
-  uint64_t size;
-  unsigned is_IO:1;
-  unsigned is_prefetchable:1;
-  unsigned is_64:1;
-};
-
-
 /* Check whether there's a pci server */
 static int
 hurd_detect (struct pci_access *a)
@@ -270,7 +259,7 @@ static int
 hurd_fill_info (struct pci_dev *d, int flags)
 {
   int err, i;
-  struct dev_region regions[6];
+  struct pci_bar regions[6];
   size_t regions_size;
   char *buf;
   mach_port_t device_port;
