@@ -260,12 +260,10 @@ hurd_fill_info (struct pci_dev *d, int flags)
 {
   int err, i;
   struct pci_bar regions[6];
-  size_t regions_size;
+  struct pci_xrom_bar rom;
+  size_t size;
   char *buf;
   mach_port_t device_port;
-  char server[NAME_MAX];
-  struct stat romst;
-  u32 xrombar_addr;
 
   device_port = *((mach_port_t *) d->aux);
 
@@ -284,24 +282,23 @@ hurd_fill_info (struct pci_dev *d, int flags)
   if (flags & PCI_FILL_BASES)
     {
       buf = (char *) &regions;
-      regions_size = sizeof (regions);
+      size = sizeof (regions);
 
-      err = pci_get_dev_regions (device_port, &buf, &regions_size);
+      err = pci_get_dev_regions (device_port, &buf, &size);
       if (err)
 	return err;
 
       if ((char *) &regions != buf)
 	{
 	  /* Sanity check for bogus server.  */
-	  if (regions_size > sizeof (regions))
+	  if (size > sizeof (regions))
 	    {
-	      vm_deallocate (mach_task_self (), (vm_address_t) buf,
-			     regions_size);
+	      vm_deallocate (mach_task_self (), (vm_address_t) buf, size);
 	      return EGRATUITOUS;
 	    }
 
-	  memcpy (&regions, buf, regions_size);
-	  vm_deallocate (mach_task_self (), (vm_address_t) buf, regions_size);
+	  memcpy (&regions, buf, size);
+	  vm_deallocate (mach_task_self (), (vm_address_t) buf, size);
 	}
 
       for (i = 0; i < 6; i++)
@@ -321,36 +318,28 @@ hurd_fill_info (struct pci_dev *d, int flags)
 
   if (flags & PCI_FILL_ROM_BASE)
     {
-      snprintf (server, NAME_MAX, "%s/%04x/%02x/%02x/%01u/%s",
-		_SERVERS_PCI_CONF, d->domain, d->bus, d->dev, d->func,
-		FILE_ROM_NAME);
+      /* Get rom info */
+      buf = (char *) &rom;
+      size = sizeof (rom);
+      err = pci_get_dev_rom (device_port, &buf, &size);
+      if (err)
+	return err;
 
-      err = lstat (server, &romst);
-      if (!err)
+      if ((char *) &rom != buf)
 	{
-	  /* Size */
-    if (flags & PCI_FILL_SIZES)
-      d->rom_size = romst.st_size;
+	  /* Sanity check for bogus server.  */
+	  if (size > sizeof (rom))
+	    {
+	      vm_deallocate (mach_task_self (), (vm_address_t) buf, size);
+	      return EGRATUITOUS;
+	    }
 
-	  /* Rom Base address */
-	  xrombar_addr = 0;
-	  d->rom_base_addr = 0;
-	  switch (d->hdrtype)
-	    {
-	    case PCI_HEADER_TYPE_NORMAL:
-	      xrombar_addr = PCI_ROM_ADDRESS;
-	      break;
-	    case PCI_HEADER_TYPE_BRIDGE:
-	      xrombar_addr = PCI_ROM_ADDRESS1;
-	      break;
-	    }
-	  if (xrombar_addr)
-	    {
-	      u32 u = pci_read_long (d, xrombar_addr);
-	      if (u != 0xffffffff)
-		d->rom_base_addr = u & 0xFFFFF800;	/* Base address: first 21 bytes */
-	    }
+	  memcpy (&rom, buf, size);
+	  vm_deallocate (mach_task_self (), (vm_address_t) buf, size);
 	}
+
+      d->rom_base_addr = rom.base_addr;
+      d->rom_size = rom.size;
     }
 
   if (flags & (PCI_FILL_CAPS | PCI_FILL_EXT_CAPS))
