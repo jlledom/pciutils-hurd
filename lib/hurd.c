@@ -255,6 +255,7 @@ hurd_write (struct pci_dev *d, int pos, byte * buf, int len)
   return nwrote == (size_t) len;
 }
 
+/* Get requested info from the server */
 static int
 hurd_fill_info (struct pci_dev *d, int flags)
 {
