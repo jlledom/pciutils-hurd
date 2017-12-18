@@ -24,7 +24,7 @@
 #include <hurd/paths.h>
 
 /* Server path */
-#define _SERVERS_PCI_CONF	_SERVERS_BUS "/pci"
+#define _SERVERS_BUS_PCI	_SERVERS_BUS "/pci"
 
 /* File names */
 #define FILE_CONFIG_NAME "config"
@@ -47,10 +47,10 @@ hurd_detect (struct pci_access *a)
   int err;
   struct stat st;
 
-  err = lstat (_SERVERS_PCI_CONF, &st);
+  err = lstat (_SERVERS_BUS_PCI, &st);
   if (err)
     {
-      a->error ("Could not open file `%s'", _SERVERS_PCI_CONF);
+      a->error ("Could not open file `%s'", _SERVERS_BUS_PCI);
       return 0;
     }
 
@@ -156,7 +156,7 @@ enum_devices (const char *parent, struct pci_access *a, int domain, int bus,
 
 	  /* We found an available virtual device, add it to our list */
 	  snprintf (server, NAME_MAX, "%s/%04x/%02x/%02x/%01u/%s",
-		    _SERVERS_PCI_CONF, domain, bus, dev, func, entry->d_name);
+		    _SERVERS_BUS_PCI, domain, bus, dev, func, entry->d_name);
 	  device_port = file_name_lookup (server, 0, 0);
 	  if (device_port == MACH_PORT_NULL)
 	    return errno;
@@ -187,7 +187,7 @@ hurd_scan (struct pci_access *a)
 {
   int err;
 
-  err = enum_devices (_SERVERS_PCI_CONF, a, -1, -1, -1, -1, LEVEL_DOMAIN);
+  err = enum_devices (_SERVERS_BUS_PCI, a, -1, -1, -1, -1, LEVEL_DOMAIN);
   assert (err == 0);
 }
 
